@@ -53,8 +53,6 @@ void loop()
         R_SHORT,
         L_SHORT,
         TO_RL_LONG,
-        TO_RL_LONG_R_RELEASE,
-        TO_RL_LONG_L_RELEASE,
         RL_LONG,
         TO_R_LONG,
         R_LONG,
@@ -111,9 +109,6 @@ void loop()
             STATE = R_SHORT;
         else if (buttonLeft.wasReleased())
             STATE = L_SHORT;
-        // TODO: Both buttons?
-        // else if (buttonRight.pressedFor(LONG_PRESS) && buttonLeft.pressedFor(LONG_PRESS))
-        //     STATE = TO_RL_LONG;
         else if (buttonRight.pressedFor(LONG_PRESS))
             STATE = TO_R_LONG;
         else if (buttonLeft.pressedFor(LONG_PRESS))
@@ -140,30 +135,16 @@ void loop()
         STATE = WAIT;
         break;
 
-    // case TO_RL_LONG:
-    //     if (buttonLeft.wasReleased())
-    //         STATE = TO_RL_LONG_L_RELEASE;
-    //     else if (buttonRight.wasReleased())
-    //         STATE = TO_RL_LONG_R_RELEASE;
-    //     break;
-
-    // case TO_RL_LONG_L_RELEASE:
-    //     if (buttonRight.wasReleased())
-    //         STATE = RL_LONG;
-    //     break;
-
-    // case TO_RL_LONG_R_RELEASE:
-    //     if (buttonLeft.wasReleased())
-    //         STATE = RL_LONG;
-    //     break;
-
-    // case RL_LONG:
-    //     singlePatch = 124;
-    //     singlePatchSend = true;
-    //     STATE = WAIT;
-    //     break;
-
     case TO_RL_LONG:
+        resetState = false;
+        singlePatchState = true;
+        if (buttonRight.wasReleased() || buttonLeft.wasReleased())
+            STATE = RL_LONG;
+        break;
+
+    case RL_LONG:
+        singlePatch = 124;
+        singlePatchSend = true;
         STATE = WAIT;
         break;
 
