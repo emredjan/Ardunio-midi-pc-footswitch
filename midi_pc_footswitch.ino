@@ -36,66 +36,11 @@ void setup()
     buttonRight.begin();
 
     // Only enable Serial for USB MIDI debugging
-    //Serial.begin(9600);
+    Serial.begin(9600);
 
     // Send a patch reset on start
     MIDI.sendProgramChange(0, 1);
 
-    ledTurnOff();
-}
-
-void ledSetColor(byte redIntensity, byte greenIntensity, byte blueIntensity)
-{
-    analogWrite(LED_RED_PIN, redIntensity);
-    analogWrite(LED_GREEN_PIN, greenIntensity);
-    analogWrite(LED_BLUE_PIN, blueIntensity);
-
-    // temp for internal led
-    digitalWrite(LED_BUILTIN, HIGH);
-}
-
-void ledTurnOff()
-{
-    ledSetColor(0, 0, 0);
-
-    // temp for internal led
-    digitalWrite(LED_BUILTIN, LOW);
-}
-
-void ledFlicker(long flickerTime, int flickerCount, byte redIntensity, byte greenIntensity, byte blueIntensity)
-{
-    byte _redIntensity;
-    byte _greenIntensity;
-    byte _blueIntensity;
-
-    unsigned long previousBlink = 0;
-    bool ledState = false;
-    int timesFlickered = 0;
-
-    while (timesFlickered <= flickerCount)
-    {
-        if (millis() - previousBlink >= flickerTime)
-        {
-            ledState = !ledState;
-            if (ledState)
-            {
-                _redIntensity = redIntensity;
-                _greenIntensity = greenIntensity;
-                _blueIntensity = blueIntensity;
-            }
-            else
-            {
-                _redIntensity = 0;
-                _greenIntensity = 0;
-                _blueIntensity = 0;
-            }
-
-            previousBlink = millis();
-
-            ledSetColor(_redIntensity, _greenIntensity, _blueIntensity);
-            timesFlickered++;
-        }
-    }
     ledTurnOff();
 }
 
@@ -108,6 +53,8 @@ void loop()
         R_SHORT,
         L_SHORT,
         TO_RL_LONG,
+        TO_RL_LONG_R_RELEASE,
+        TO_RL_LONG_L_RELEASE,
         RL_LONG,
         TO_R_LONG,
         R_LONG,
@@ -164,7 +111,7 @@ void loop()
             STATE = R_SHORT;
         else if (buttonLeft.wasReleased())
             STATE = L_SHORT;
-        //TODO: Both buttons?
+        // TODO: Both buttons?
         // else if (buttonRight.pressedFor(LONG_PRESS) && buttonLeft.pressedFor(LONG_PRESS))
         //     STATE = TO_RL_LONG;
         else if (buttonRight.pressedFor(LONG_PRESS))
@@ -193,20 +140,42 @@ void loop()
         STATE = WAIT;
         break;
 
-    case TO_RL_LONG:
-        //TODO:
-        STATE = RL_LONG;
-        break;
+    // case TO_RL_LONG:
+    //     if (buttonLeft.wasReleased())
+    //         STATE = TO_RL_LONG_L_RELEASE;
+    //     else if (buttonRight.wasReleased())
+    //         STATE = TO_RL_LONG_R_RELEASE;
+    //     break;
 
-    case RL_LONG:
-        //TODO:
+    // case TO_RL_LONG_L_RELEASE:
+    //     if (buttonRight.wasReleased())
+    //         STATE = RL_LONG;
+    //     break;
+
+    // case TO_RL_LONG_R_RELEASE:
+    //     if (buttonLeft.wasReleased())
+    //         STATE = RL_LONG;
+    //     break;
+
+    // case RL_LONG:
+    //     singlePatch = 124;
+    //     singlePatchSend = true;
+    //     STATE = WAIT;
+    //     break;
+
+    case TO_RL_LONG:
         STATE = WAIT;
         break;
 
     case TO_R_LONG:
-        singlePatchState = true;
-        if (buttonRight.wasReleased())
-            STATE = R_LONG;
+        if (buttonLeft.pressedFor(LONG_PRESS))
+            STATE = TO_RL_LONG;
+        else
+        {
+            singlePatchState = true;
+            if (buttonRight.wasReleased())
+                STATE = R_LONG;
+        }
         break;
 
     case R_LONG:
@@ -216,9 +185,14 @@ void loop()
         break;
 
     case TO_L_LONG:
-        resetState = true;
-        if (buttonLeft.wasReleased())
-            STATE = L_LONG;
+        if (buttonRight.pressedFor(LONG_PRESS))
+            STATE = TO_RL_LONG;
+        else
+        {
+            resetState = true;
+            if (buttonLeft.wasReleased())
+                STATE = L_LONG;
+        }
         break;
 
     case L_LONG:
@@ -226,4 +200,59 @@ void loop()
         STATE = WAIT;
         break;
     }
+}
+
+void ledSetColor(byte redIntensity, byte greenIntensity, byte blueIntensity)
+{
+    analogWrite(LED_RED_PIN, redIntensity);
+    analogWrite(LED_GREEN_PIN, greenIntensity);
+    analogWrite(LED_BLUE_PIN, blueIntensity);
+
+    // temp for internal led
+    digitalWrite(LED_BUILTIN, HIGH);
+}
+
+void ledTurnOff()
+{
+    ledSetColor(0, 0, 0);
+
+    // temp for internal led
+    digitalWrite(LED_BUILTIN, LOW);
+}
+
+void ledFlicker(long flickerTime, int flickerCount, byte redIntensity, byte greenIntensity, byte blueIntensity)
+{
+    byte _redIntensity;
+    byte _greenIntensity;
+    byte _blueIntensity;
+
+    unsigned long previousBlink = 0;
+    bool ledState = false;
+    int timesFlickered = 0;
+
+    while (timesFlickered <= flickerCount)
+    {
+        if (millis() - previousBlink >= flickerTime)
+        {
+            ledState = !ledState;
+            if (ledState)
+            {
+                _redIntensity = redIntensity;
+                _greenIntensity = greenIntensity;
+                _blueIntensity = blueIntensity;
+            }
+            else
+            {
+                _redIntensity = 0;
+                _greenIntensity = 0;
+                _blueIntensity = 0;
+            }
+
+            previousBlink = millis();
+
+            ledSetColor(_redIntensity, _greenIntensity, _blueIntensity);
+            timesFlickered++;
+        }
+    }
+    ledTurnOff();
 }
