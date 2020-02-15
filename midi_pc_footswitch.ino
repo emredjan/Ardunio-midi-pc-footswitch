@@ -3,46 +3,61 @@
 // Inspired by Aaron Lyon April 2018
 
 #include <MIDI.h>
+#include <JC_Button.h>
 
 MIDI_CREATE_DEFAULT_INSTANCE();
 
-byte patchNum = 0;
-
-const int buttonRight = 2;
-const int buttonLeft = 3;
+const byte BUTTON_RIGHT_PIN = 2;
+const byte BUTTON_LEFT_PIN = 3;
 // RGB Led on Pins 9-11 (PWM)
-const int ledRed = 9;
-const int ledGreen = 10;
-const int ledBlue = 11;
+const byte LED_RED_PIN = 9;
+const byte LED_GREEN_PIN = 10;
+const byte LED_BLUE_PIN = 11;
 
-const long delayButton = 300;
-const long flickerSlow = 75;
-const long flickerFast = 30;
-const int maxPatches = 16;
+const unsigned long LONG_PRESS = 1500;
+
+const unsigned long FLICKER_NONE = 300;
+const unsigned long FLICKER_SLOW = 60;
+const unsigned long FLICKER_FAST = 30;
+const byte LED_INTENSITY = 255;
+
+const int MIN_PATCH = 0;
+const int MAX_PATCH = 3;
+
+Button buttonRight(BUTTON_RIGHT_PIN);
+Button buttonLeft(BUTTON_LEFT_PIN);
+
+// byte patchNum = 0;
 
 void setup()
 {
-    pinMode(buttonRight, INPUT_PULLUP);
-    pinMode(buttonLeft, INPUT_PULLUP);
     pinMode(LED_BUILTIN, OUTPUT);
-    pinMode(ledRed, OUTPUT);
-    pinMode(ledGreen, OUTPUT);
-    pinMode(ledBlue, OUTPUT);
+    pinMode(LED_RED_PIN, OUTPUT);
+    pinMode(LED_GREEN_PIN, OUTPUT);
+    pinMode(LED_BLUE_PIN, OUTPUT);
+
+    //pinMode(buttonLeft, INPUT_PULLUP);
+    //pinMode(buttonRight, INPUT_PULLUP);
 
     MIDI.begin(MIDI_CHANNEL_OMNI);
+
+    buttonLeft.begin();
+    buttonRight.begin();
+
+    // Only enable Serial for USB MIDI debugging
     Serial.begin(9600);
 
     // Send a patch reset on start
-    MIDI.sendProgramChange(patchNum, 1);
+    MIDI.sendProgramChange(0, 1);
 
     ledTurnOff();
 }
 
 void ledSetColor(byte redIntensity, byte greenIntensity, byte blueIntensity)
 {
-    analogWrite(ledRed, redIntensity);
-    analogWrite(ledGreen, greenIntensity);
-    analogWrite(ledBlue, blueIntensity);
+    analogWrite(LED_RED_PIN, redIntensity);
+    analogWrite(LED_GREEN_PIN, greenIntensity);
+    analogWrite(LED_BLUE_PIN, blueIntensity);
 
     // temp for internal led
     digitalWrite(LED_BUILTIN, HIGH);
@@ -56,71 +71,182 @@ void ledTurnOff()
     digitalWrite(LED_BUILTIN, LOW);
 }
 
+// void ledFlicker(long flickerTime, int flickerCount, byte redIntensity, byte greenIntensity, byte blueIntensity)
+// {
+//     // Flicker the LED to indicate end of range
+//     for (size_t i = 0; i < flickerCount; i++)
+//     {
+//         ledSetColor(redIntensity, greenIntensity, blueIntensity);
+//         delay(flickerTime);
+//         ledTurnOff();
+//         delay(flickerTime);
+//     }
+// }
+
 void ledFlicker(long flickerTime, int flickerCount, byte redIntensity, byte greenIntensity, byte blueIntensity)
 {
-    // Flicker the LED to indicate end of range
-    for (size_t i = 0; i < flickerCount; i++)
+    byte _redIntensity;
+    byte _greenIntensity;
+    byte _blueIntensity;
+
+    unsigned long previousBlink = 0;
+    bool ledState = false;
+    int timesFlickered = 0;
+
+    while (timesFlickered <= flickerCount)
     {
-        ledSetColor(redIntensity, greenIntensity, blueIntensity);
-        delay(flickerTime);
-        ledTurnOff();
-        delay(flickerTime);
+        if (millis() - previousBlink >= flickerTime)
+        {
+            ledState = !ledState;
+            if (ledState)
+            {
+                _redIntensity = redIntensity;
+                _greenIntensity = greenIntensity;
+                _blueIntensity = blueIntensity;
+            }
+            else
+            {
+                _redIntensity = 0;
+                _greenIntensity = 0;
+                _blueIntensity = 0;
+            }
+
+            previousBlink = millis();
+
+            ledSetColor(_redIntensity, _greenIntensity, _blueIntensity);
+            timesFlickered++;
+        }
     }
+    ledTurnOff();
 }
 
 void loop()
 {
-    if (digitalRead(buttonRight) == LOW)
+
+    enum states_t
     {
+        WAIT,
+        R_SHORT,
+        L_SHORT,
+        TO_RL_LONG,
+        RL_LONG,
+        TO_R_LONG,
+        R_LONG,
+        TO_L_LONG,
+        L_LONG,
+    };
+    static states_t STATE;
+    static int
+        patchNum,
+        lastPatchNum,
+        singlePatch;
+    static bool
+        errorState(false),
+        singlePatchState(false),
+        singlePatchSend(false),
+        resetState(false),
+        resetSend(false);
 
-        if (patchNum < maxPatches)
-        {
-            // Green for Next Program
-            ledSetColor(0, 255, 0);
+    buttonRight.read();
+    buttonLeft.read();
 
-            // Next Program
-            patchNum++;
-            MIDI.sendProgramChange(patchNum, 1);
+    if (errorState)
+        ledFlicker(FLICKER_FAST, 10, LED_INTENSITY, 0, 0);
 
-            delay(delayButton);
-            ledTurnOff();
-        }
+    if (singlePatchState)
+        ledFlicker(FLICKER_SLOW, 4, LED_INTENSITY, 0, LED_INTENSITY);
+
+    if (singlePatchSend)
+        MIDI.sendProgramChange(singlePatch, 1);
+
+    if (resetState)
+        ledFlicker(FLICKER_SLOW, 4, LED_INTENSITY, LED_INTENSITY, 0);
+
+    if (patchNum != lastPatchNum)
+    {
+        if (patchNum > lastPatchNum)
+            ledFlicker(FLICKER_NONE, 1, 0, LED_INTENSITY, 0);
         else
-        {
-            // Red flicker for end of range
-            ledFlicker(flickerFast, 5, 255, 0, 0);
-        }
-    }
+            ledFlicker(FLICKER_NONE, 1, 0, 0, LED_INTENSITY);
 
-    if (digitalRead(buttonLeft) == LOW)
-    {
-        if (patchNum >= 1)
-        {
-            // Blue for Previous Program
-            ledSetColor(0, 0, 255);
-
-            // Previous Program
-            patchNum--;
-            MIDI.sendProgramChange(patchNum, 1);
-
-            delay(delayButton);
-            ledTurnOff();
-        }
-        else
-        {
-            // Red flicker for end of range
-            ledFlicker(flickerFast, 5, 255, 0, 0);
-        }
-    }
-
-    // Reset Program when both buttons are pressed
-    if (digitalRead(buttonRight) == LOW && digitalRead(buttonLeft) == LOW)
-    {
-        // Yellow flicker for reset
-        ledFlicker(flickerSlow, 10, 255, 255, 0);
-
-        // Reset Patch to Zero
-        patchNum = 0;
         MIDI.sendProgramChange(patchNum, 1);
+
+        lastPatchNum = patchNum;
+    }
+
+    switch (STATE)
+    {
+    case WAIT: // wait for a button event
+        errorState = false;
+        singlePatchState = false;
+        singlePatchSend = false;
+        resetState = false;
+        // resetSend = false;
+        if (buttonRight.wasReleased())
+            STATE = R_SHORT;
+        else if (buttonLeft.wasReleased())
+            STATE = L_SHORT;
+        //TODO: Both buttons?
+        // else if (buttonRight.pressedFor(LONG_PRESS) && buttonLeft.pressedFor(LONG_PRESS))
+        //     STATE = TO_RL_LONG;
+        else if (buttonRight.pressedFor(LONG_PRESS))
+            STATE = TO_R_LONG;
+        else if (buttonLeft.pressedFor(LONG_PRESS))
+            STATE = TO_L_LONG;
+        break;
+
+    case R_SHORT:
+        ++patchNum;
+        if (patchNum > MAX_PATCH)
+        {
+            patchNum = min(patchNum, MAX_PATCH);
+            errorState = true;
+        }
+        STATE = WAIT;
+        break;
+
+    case L_SHORT:
+        --patchNum;
+        if (patchNum < MIN_PATCH)
+        {
+            patchNum = max(patchNum, MIN_PATCH);
+            errorState = true;
+        }
+        STATE = WAIT;
+        break;
+
+    case TO_RL_LONG:
+        //TODO:
+        STATE = RL_LONG;
+        break;
+
+    case RL_LONG:
+        //TODO:
+        STATE = WAIT;
+        break;
+
+    case TO_R_LONG:
+        singlePatchState = true;
+        if (buttonRight.wasReleased())
+            STATE = R_LONG;
+        break;
+
+    case R_LONG:
+        singlePatch = 123;
+        singlePatchSend = true;
+        STATE = WAIT;
+        break;
+
+    case TO_L_LONG:
+        resetState = true;
+        if (buttonLeft.wasReleased())
+            STATE = L_LONG;
+        break;
+
+    case L_LONG:
+        patchNum = 0;
+        // resetSend = true;
+        STATE = WAIT;
+        break;
     }
 }
