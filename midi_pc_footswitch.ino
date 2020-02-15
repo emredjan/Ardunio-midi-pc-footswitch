@@ -1,7 +1,3 @@
-// midi.controller
-// Sends midi program change
-// Inspired by Aaron Lyon April 2018
-
 #include <MIDI.h>
 #include <JC_Button.h>
 
@@ -27,8 +23,6 @@ const int MAX_PATCH = 3;
 Button buttonRight(BUTTON_RIGHT_PIN);
 Button buttonLeft(BUTTON_LEFT_PIN);
 
-// byte patchNum = 0;
-
 void setup()
 {
     pinMode(LED_BUILTIN, OUTPUT);
@@ -36,16 +30,13 @@ void setup()
     pinMode(LED_GREEN_PIN, OUTPUT);
     pinMode(LED_BLUE_PIN, OUTPUT);
 
-    //pinMode(buttonLeft, INPUT_PULLUP);
-    //pinMode(buttonRight, INPUT_PULLUP);
-
     MIDI.begin(MIDI_CHANNEL_OMNI);
 
     buttonLeft.begin();
     buttonRight.begin();
 
     // Only enable Serial for USB MIDI debugging
-    Serial.begin(9600);
+    //Serial.begin(9600);
 
     // Send a patch reset on start
     MIDI.sendProgramChange(0, 1);
@@ -70,18 +61,6 @@ void ledTurnOff()
     // temp for internal led
     digitalWrite(LED_BUILTIN, LOW);
 }
-
-// void ledFlicker(long flickerTime, int flickerCount, byte redIntensity, byte greenIntensity, byte blueIntensity)
-// {
-//     // Flicker the LED to indicate end of range
-//     for (size_t i = 0; i < flickerCount; i++)
-//     {
-//         ledSetColor(redIntensity, greenIntensity, blueIntensity);
-//         delay(flickerTime);
-//         ledTurnOff();
-//         delay(flickerTime);
-//     }
-// }
 
 void ledFlicker(long flickerTime, int flickerCount, byte redIntensity, byte greenIntensity, byte blueIntensity)
 {
@@ -176,12 +155,11 @@ void loop()
 
     switch (STATE)
     {
-    case WAIT: // wait for a button event
+    case WAIT:
         errorState = false;
         singlePatchState = false;
         singlePatchSend = false;
         resetState = false;
-        // resetSend = false;
         if (buttonRight.wasReleased())
             STATE = R_SHORT;
         else if (buttonLeft.wasReleased())
@@ -245,7 +223,6 @@ void loop()
 
     case L_LONG:
         patchNum = 0;
-        // resetSend = true;
         STATE = WAIT;
         break;
     }
